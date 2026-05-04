@@ -1,0 +1,27 @@
+name: COBOL SQL Billing CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gnucobol libsqlite3-dev sqlite3
+
+    - name: Build Hibrid System
+      run: make build
+
+    - name: Run Integration Tests
+      run: ./tests/run_tests.sh
+      env:
+        TERM: xterm
