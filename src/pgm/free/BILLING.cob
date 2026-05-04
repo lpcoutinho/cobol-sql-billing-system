@@ -5,55 +5,50 @@
 
        DATA DIVISION.
        WORKING-STORAGE SECTION.
-       
-       EXEC SQL INCLUDE SQLCA END-EXEC.
-
-       EXEC SQL BEGIN DECLARE SECTION END-EXEC.
+       *> Variáveis para receber dados do C
        01  DB-CLIENTE-ID      PIC S9(09) COMP-5.
-       01  DB-CLIENTE-NOME    PIC X(50).
-       01  DB-CLIENTE-EMAIL   PIC X(50).
-       EXEC SQL END DECLARE SECTION END-EXEC.
-
+       01  DB-CLIENTE-NOME    PIC X(51). *> +1 para o null terminator do C
+       01  DB-CLIENTE-EMAIL   PIC X(51).
+       
+       01  WS-RETORNO         PIC S9(04) COMP-5.
+       01  WS-DB-NAME         PIC X(20) VALUE Z"db/billing.db".
        01  WS-DISPLAY-ID      PIC Z(09).
 
        PROCEDURE DIVISION.
        INICIO.
-           DISPLAY "SISTEMA DE FATURAMENTO - CONECTANDO AO SQLITE..."
+           DISPLAY "SISTEMA DE FATURAMENTO - INTEGRACAO COBOL/C/SQLITE"
            
-           EXEC SQL 
-               CONNECT TO 'db/billing.db'
-           END-EXEC.
+           *> Conectar ao banco
+           CALL "db_connect" USING BY REFERENCE WS-DB-NAME
+                             RETURNING WS-RETORNO.
 
-           IF SQLCODE NOT = 0
-               DISPLAY "ERRO AO CONECTAR AO BANCO: " SQLCODE
+           IF WS-RETORNO NOT = 0
+               DISPLAY "ERRO AO CONECTAR AO BANCO: " WS-RETORNO
                STOP RUN
            END-IF.
 
-           DISPLAY "LISTA DE CLIENTES CADASTRADOS:"
+           *> Preparar Consulta
+           CALL "db_prepare_clientes" RETURNING WS-RETORNO.
+
+           DISPLAY "LISTA DE CLIENTES CADASTRADOS (VIA SQL):"
            DISPLAY "----------------------------------------"
 
-           EXEC SQL
-               DECLARE CUR_CLI CURSOR FOR
-               SELECT id, nome, email FROM clientes
-           END-EXEC.
-
-           EXEC SQL OPEN CUR_CLI END-EXEC.
-
-           PERFORM UNTIL SQLCODE NOT = 0
-               EXEC SQL
-                   FETCH CUR_CLI INTO :DB-CLIENTE-ID, :DB-CLIENTE-NOME, :DB-CLIENTE-EMAIL
-               END-EXEC
+           MOVE 0 TO WS-RETORNO.
+           PERFORM UNTIL WS-RETORNO NOT = 0
+               CALL "db_fetch_cliente" USING BY REFERENCE DB-CLIENTE-ID
+                                             BY REFERENCE DB-CLIENTE-NOME
+                                             BY REFERENCE DB-CLIENTE-EMAIL
+                                       RETURNING WS-RETORNO
                
-               IF SQLCODE = 0
+               IF WS-RETORNO = 0
                    MOVE DB-CLIENTE-ID TO WS-DISPLAY-ID
                    DISPLAY "ID: " WS-DISPLAY-ID " | NOME: " DB-CLIENTE-NOME
                END-IF
            END-PERFORM.
 
-           EXEC SQL CLOSE CUR_CLI END-EXEC.
-           
-           EXEC SQL DISCONNECT CURRENT END-EXEC.
+           *> Desconectar
+           CALL "db_disconnect".
 
            DISPLAY "----------------------------------------"
-           DISPLAY "PROCESSAMENTO CONCLUIDO."
+           DISPLAY "PROCESSAMENTO SQL CONCLUIDO COM SUCESSO."
            STOP RUN.
